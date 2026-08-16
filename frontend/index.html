@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Home Tutor</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>📚 AI Home Tutor</h1>
+      <div class="student-bar">
+        <label for="student">Student:</label>
+        <select id="student"></select>
+        <button id="add-student" class="ghost">+ New</button>
+        <span id="ai-badge" class="badge">…</span>
+      </div>
+      <div class="mode-bar">
+        <label for="tutor-mode">🧠 Tutor:</label>
+        <select id="tutor-mode" title="Which AI answers homework"></select>
+        <span id="tutor-mode-hint" class="tiny"></span>
+      </div>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab active" data-tab="dictation">✏️ Dictation</button>
+      <button class="tab" data-tab="homework">🧮 Homework</button>      <button class="tab" data-tab="teachme">🧠 Teach Me</button>      <button class="tab" data-tab="progress">📈 Progress</button>
+    </nav>
+
+    <main>
+      <!-- Shared camera panel -->
+      <section class="camera-panel">
+        <video id="video" autoplay playsinline muted></video>
+        <canvas id="canvas" hidden></canvas>
+        <div class="camera-controls">
+          <button id="start-cam">🎥 Start camera</button>
+          <span id="cam-status" class="muted">Camera off</span>
+        </div>
+        <p class="muted tiny">
+          Snapshots are taken only when you press a Check button. No video is
+          stored.
+        </p>
+      </section>
+
+      <!-- Dictation -->
+      <section id="tab-dictation" class="tab-content active">
+        <h2>Dictation practice</h2>
+        <div class="row">
+          <label>Level:
+            <select id="dict-level">
+              <option value="1">1 · Easy</option>
+              <option value="2" selected>2 · Medium</option>
+              <option value="3">3 · Hard</option>
+            </select>
+          </label>
+          <button id="new-sentence">🎲 New sentence</button>
+          <button id="read-sentence" class="ghost">🔊 Read it</button>
+        </div>
+        <blockquote id="dict-sentence" class="sentence">
+          Press “New sentence”, listen, then write it in your notebook.
+        </blockquote>
+        <div class="row">
+          <button id="dict-check" class="primary">✅ Check my writing</button>
+          <details>
+            <summary>Type instead</summary>
+            <textarea id="dict-typed" rows="2" placeholder="Type what you wrote"></textarea>
+          </details>
+        </div>
+        <div id="dict-result" class="result" hidden></div>
+      </section>
+
+      <!-- Homework -->
+      <section id="tab-homework" class="tab-content">
+        <h2>Homework checker</h2>
+        <label>Question (optional — else it is read from your page):
+          <input id="hw-question" type="text" placeholder="e.g. What is 1/2 + 1/4?" />
+        </label>
+        <label>Topic:
+          <input id="hw-topic" type="text" value="homework" />
+        </label>
+        <div class="row">
+          <button id="hw-check" class="primary">✅ Check my answer</button>
+          <details>
+            <summary>Type instead</summary>
+            <textarea id="hw-typed" rows="2" placeholder="Type your answer"></textarea>
+          </details>
+        </div>
+        <div id="hw-result" class="result" hidden></div>
+      </section>
+
+      <!-- Teach Me -->
+      <section id="tab-teachme" class="tab-content">
+        <h2>Teach me — explain your answer</h2>
+        <p class="muted tiny">
+          Answer, then explain HOW you got it. The tutor keeps asking until it's
+          sure you understand — not just the answer.
+        </p>
+        <label>Question (optional):
+          <input id="tm-question" type="text" placeholder="e.g. What is 24 × 6?" />
+        </label>
+        <label>Your answer:
+          <input id="tm-answer" type="text" placeholder="e.g. 144" />
+        </label>
+        <div id="tm-transcript" class="transcript" hidden></div>
+        <div class="row">
+          <button id="tm-record">🎤 Explain out loud</button>
+          <span id="tm-rec-status" class="muted tiny">Tap, then talk</span>
+        </div>
+        <textarea id="tm-explanation" rows="2"
+          placeholder="Your explanation appears here — or type it"></textarea>
+        <div class="row">
+          <button id="tm-send" class="primary">➡️ Send</button>
+          <button id="tm-restart" class="ghost">🔄 Start over</button>
+        </div>
+        <div id="tm-result" class="result" hidden></div>
+      </section>
+
+      <!-- Progress -->
+      <section id="tab-progress" class="tab-content">
+        <h2>Progress</h2>
+        <button id="refresh-progress">🔄 Refresh</button>
+        <div id="progress-view" class="result"></div>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>

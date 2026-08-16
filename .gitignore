@@ -1,0 +1,11 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# App data / secrets
+data/
+.env
+
+# Test / build caches
+.pytest_cache/
