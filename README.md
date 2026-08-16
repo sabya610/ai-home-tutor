@@ -4,6 +4,9 @@ A privacy-first study mentor for kids. It watches the notebook **only on demand*
 (when a "Check" button is pressed — no continuous recording), reads the
 handwriting, grades it, and gives a hint instead of the answer.
 
+> 📐 **Architecture & workflow deep-dive:** see [ARCHITECTURE.md](ARCHITECTURE.md)
+> (diagrams, data flow per feature, provider routing, deployment).
+
 ## V1 capabilities
 
 - **Dictation tutor** — reads a sentence aloud (browser TTS), the child writes it,
