@@ -84,15 +84,15 @@ pytest -q
 
 ```powershell
 cd ai-home-tutor
-docker build -t sabya610/ai-home-tutor:v3 .
-docker run --rm -p 8000:8000 -e AI_MODE=mock sabya610/ai-home-tutor:v3
+docker build -t sabya610/ai-home-tutor:v4 .
+docker run --rm -p 8000:8000 -e AI_MODE=mock sabya610/ai-home-tutor:v4
 ```
 
 ## Push to Docker Hub (run yourself — needs your login)
 
 ```powershell
 docker login
-docker push sabya610/ai-home-tutor:v3
+docker push sabya610/ai-home-tutor:v4
 ```
 
 ## Privacy notes
