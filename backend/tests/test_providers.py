@@ -1,6 +1,7 @@
 """Tests for provider selection and tolerant JSON parsing (no network)."""
 
 from app.ai_client import (
+    AIClient,
     coerce_homework,
     coerce_teachme,
     coerce_teachme_turn,
@@ -118,7 +119,22 @@ def test_tutor_modes_cloud_and_cluster_listed():
     assert set(targets) >= {"cloud", "cluster", "mock"}
     assert s.default_tutor_mode() == "cluster"  # custom endpoint wins default
     assert targets["cluster"]["model"] == "llama3.1-8b"
-    assert targets["cloud"]["model"] == "gpt-4o-mini"  # cloud fallback model
+    assert targets["cloud"]["model"] == "gpt-5.6-luna"  # cloud fallback model
+
+
+def test_token_limit_kwarg_named_per_endpoint():
+    ai = AIClient(
+        Settings(
+            ai_mode="auto",
+            openai_api_key="sk-test",
+            tutor_base_url="http://x/v1",
+            tutor_model="llama3.1-8b",
+            _env_file=None,
+        )
+    )
+    # OpenAI's newer models need max_completion_tokens; llama.cpp/Ollama need max_tokens.
+    assert "max_tokens" in ai._token_limit_kwargs("cluster")
+    assert "max_completion_tokens" in ai._token_limit_kwargs("cloud")
 
 
 def test_resolve_tutor_mode_falls_back():

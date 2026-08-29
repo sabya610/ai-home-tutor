@@ -8,7 +8,7 @@ services:
 
   tutor:
     build: .
-    image: sabya610/ai-home-tutor:v5
+    image: sabya610/ai-home-tutor:v9
     container_name: ai-home-tutor
     depends_on:
       - ollama
@@ -22,6 +22,10 @@ services:
       TUTOR_MODEL: llama3.2:1b
       TUTOR_API_KEY: not-needed
       TUTOR_MAX_TOKENS: "220"
+      # OpenAI cloud tutor (GPT-5.6 Luna). Key comes from host env or a .env
+      # next to this file — never commit the real key.
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      CLOUD_TUTOR_MODEL: ${CLOUD_TUTOR_MODEL:-gpt-5.6-luna}
     volumes:
       - ./data:/app/backend/data
     restart: unless-stopped

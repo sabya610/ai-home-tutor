@@ -75,6 +75,19 @@ def _teachme_user_prompt(
     )
 
 
+EXPLAIN_SYSTEM = (
+    "You are a friendly home tutor. Explain simply for a child at the given "
+    "grade level, using one everyday example. Keep it to 3-5 short sentences."
+)
+
+
+def _explain_messages(topic: str, grade_level: int) -> list[dict[str, str]]:
+    return [
+        {"role": "system", "content": EXPLAIN_SYSTEM},
+        {"role": "user", "content": f"Grade {grade_level}. Explain: {topic}"},
+    ]
+
+
 def extract_json(text: str) -> dict[str, Any] | None:
     """Best-effort parse of a JSON object from a model reply.
 
@@ -215,6 +228,15 @@ class AIClient:
             kwargs["base_url"] = base_url
         return OpenAI(**kwargs)
 
+    def _token_limit_kwargs(self, mode: str, limit: int | None = None) -> dict[str, int]:
+        """Token-cap kwarg named per endpoint: OpenAI's newer models (GPT-5.x)
+        require ``max_completion_tokens``; llama.cpp / Ollama use ``max_tokens``."""
+        if limit is None:
+            limit = self.settings.tutor_max_tokens
+        target = self.settings.tutor_mode_targets().get(mode, {})
+        param = "max_tokens" if target.get("base_url") else "max_completion_tokens"
+        return {param: limit}
+
     # -- Vision ---------------------------------------------------------
     def transcribe_image(self, image_bytes: bytes, mime: str = "image/jpeg") -> str:
         if self.vision_mock:
@@ -258,7 +280,7 @@ class AIClient:
         kwargs: dict[str, Any] = {
             "model": model,
             "temperature": 0.2,
-            "max_tokens": self.settings.tutor_max_tokens,
+            **self._token_limit_kwargs(resolved),
             "messages": [
                 {"role": "system", "content": HOMEWORK_SYSTEM},
                 {
@@ -297,7 +319,7 @@ class AIClient:
         kwargs: dict[str, Any] = {
             "model": model,
             "temperature": 0.3,
-            "max_tokens": self.settings.tutor_max_tokens,
+            **self._token_limit_kwargs(resolved),
             "messages": [
                 {"role": "system", "content": TEACHME_SYSTEM},
                 {
@@ -371,7 +393,7 @@ class AIClient:
         kwargs: dict[str, Any] = {
             "model": model,
             "temperature": 0.3,
-            "max_tokens": self.settings.tutor_max_tokens,
+            **self._token_limit_kwargs(resolved),
             "messages": messages,
         }
         if use_json:
@@ -385,7 +407,7 @@ class AIClient:
 
     # -- Concept explanation -------------------------------------------
     def explain(self, topic: str, grade_level: int = 3, mode: str = "auto") -> str:
-        client, model, _use_json, _resolved = self._resolve_tutor(mode)
+        client, model, _use_json, resolved = self._resolve_tutor(mode)
         if client is None:
             return (
                 f"Let's learn about {topic}! Imagine it with a simple example, "
@@ -394,23 +416,35 @@ class AIClient:
         resp = client.chat.completions.create(
             model=model,
             temperature=0.4,
-            max_tokens=self.settings.tutor_max_tokens,
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You are a friendly home tutor. Explain simply for a child "
-                        "at the given grade level, using one everyday example. "
-                        "Keep it to 3-5 short sentences."
-                    ),
-                },
-                {
-                    "role": "user",
-                    "content": f"Grade {grade_level}. Explain: {topic}",
-                },
-            ],
+            messages=_explain_messages(topic, grade_level),
+            **self._token_limit_kwargs(resolved),
         )
         return (resp.choices[0].message.content or "").strip()
+
+    def explain_stream(self, topic: str, grade_level: int = 3, mode: str = "auto"):
+        """Yield the explanation in text chunks so the UI can render as it streams."""
+        client, model, _use_json, resolved = self._resolve_tutor(mode)
+        if client is None:
+            demo = (
+                f"Let's learn about {topic}! Imagine it with a simple example, "
+                "then we'll try one together."
+            )
+            for word in demo.split(" "):
+                yield word + " "
+            return
+        stream = client.chat.completions.create(
+            model=model,
+            temperature=0.4,
+            stream=True,
+            messages=_explain_messages(topic, grade_level),
+            **self._token_limit_kwargs(resolved),
+        )
+        for chunk in stream:
+            if not chunk.choices:
+                continue
+            delta = chunk.choices[0].delta.content
+            if delta:
+                yield delta
 
     # -- Diagnostics ----------------------------------------------------
     def provider_info(self) -> dict[str, Any]:
@@ -438,8 +472,8 @@ class AIClient:
             resp = client.chat.completions.create(
                 model=model,
                 temperature=0,
-                max_tokens=5,
                 messages=[{"role": "user", "content": "Reply with the word OK."}],
+                **self._token_limit_kwargs(resolved, 5),
             )
             return {
                 "ok": True,
