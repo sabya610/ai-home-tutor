@@ -1,6 +1,7 @@
 """Tutor endpoints: list tutor modes and explain a concept at the child's level."""
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 
 from .. import db
 from ..ai_client import get_ai_client
@@ -32,6 +33,24 @@ def explain(payload: ExplainIn) -> ExplainOut:
     text = get_ai_client().explain(payload.topic, payload.grade_level, mode=payload.tutor_mode)
     resolved = get_settings().resolve_tutor_mode(payload.tutor_mode)
     return ExplainOut(topic=payload.topic, explanation=text, tutor_mode=resolved)
+
+
+@router.post("/explain/stream")
+def explain_stream(payload: ExplainIn) -> StreamingResponse:
+    """Same as /explain but streams the answer token-by-token (lower perceived latency)."""
+    resolved = get_settings().resolve_tutor_mode(payload.tutor_mode)
+    tokens = get_ai_client().explain_stream(
+        payload.topic, payload.grade_level, mode=payload.tutor_mode
+    )
+    return StreamingResponse(
+        tokens,
+        media_type="text/plain; charset=utf-8",
+        headers={
+            "X-Tutor-Mode": resolved,
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.post("/teachme", response_model=TeachMeResult)

@@ -6,6 +6,16 @@ const api = (path, opts) => fetch(path, opts).then((r) => r.json());
 let stream = null;
 
 // ---- Tabs ----------------------------------------------------------
+const CAMERA_TABS = new Set(["dictation", "homework"]); // only these use the webcam
+
+function syncCameraPanel(tab) {
+  const panel = $("camera-panel");
+  if (!panel) return;
+  const show = CAMERA_TABS.has(tab);
+  panel.hidden = !show;
+  if (!show && stream) stopCamera(); // release the webcam on tabs that don't use it
+}
+
 document.querySelectorAll(".tab").forEach((btn) => {
   btn.addEventListener("click", () => {
     document.querySelectorAll(".tab").forEach((b) => b.classList.remove("active"));
@@ -14,9 +24,12 @@ document.querySelectorAll(".tab").forEach((btn) => {
       .forEach((c) => c.classList.remove("active"));
     btn.classList.add("active");
     $("tab-" + btn.dataset.tab).classList.add("active");
+    syncCameraPanel(btn.dataset.tab);
     if (btn.dataset.tab === "progress") loadProgress();
   });
 });
+
+syncCameraPanel(activeTab() || "dictation"); // set initial visibility for the default tab
 
 // ---- Camera --------------------------------------------------------
 async function startCamera() {
@@ -553,9 +566,14 @@ async function askTutor(topic) {
   $("ask-question").value = topic;
   const el = $("ask-result");
   el.hidden = false;
-  el.innerHTML = `<div class="callout hint">🤔 Thinking about “${escapeHtml(topic)}”…</div>`;
+  el.innerHTML = `
+    <div class="scorecard">
+      <div><b>🗣️ ${escapeHtml(topic)}</b> <span class="chip" id="ask-mode">…</span></div>
+    </div>
+    <div class="callout good" id="ask-text"><span class="caret">▍</span></div>`;
+  const textEl = $("ask-text");
   try {
-    const r = await api("/api/tutor/explain", {
+    const res = await fetch("/api/tutor/explain/stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -564,13 +582,31 @@ async function askTutor(topic) {
         tutor_mode: currentTutorMode(),
       }),
     });
-    el.innerHTML = `
-      <div class="scorecard">
-        <div><b>🗣️ ${escapeHtml(topic)}</b>${r.tutor_mode ? ` <span class="chip">via ${escapeHtml(r.tutor_mode)}</span>` : ""}</div>
-      </div>
-      <div class="callout good">${escapeHtml(r.explanation)}</div>
-      ${r.tutor_mode === "mock" ? `<div class="muted tiny">Demo answer — choose a real Tutor (Cloud/Cluster) above for a full explanation.</div>` : ""}`;
-    speak(r.explanation);
+    if (!res.ok || !res.body) throw new Error("HTTP " + res.status);
+    const mode = res.headers.get("X-Tutor-Mode") || "";
+    const modeEl = $("ask-mode");
+    if (modeEl) modeEl.textContent = mode ? "via " + mode : "";
+    // Render tokens as they arrive so the answer appears instantly, word by word.
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let full = "";
+    let started = false;
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (!started) { textEl.textContent = ""; started = true; }
+      full += decoder.decode(value, { stream: true });
+      textEl.textContent = full;
+    }
+    full = full.trim();
+    textEl.textContent = full || "…";
+    if (mode === "mock") {
+      el.insertAdjacentHTML(
+        "beforeend",
+        `<div class="muted tiny">Demo answer — choose a real Tutor (Cloud/Cluster) above for a full explanation.</div>`
+      );
+    }
+    speak(full);
   } catch (err) {
     showError(el, err.message);
   }

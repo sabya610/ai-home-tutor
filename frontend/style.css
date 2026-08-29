@@ -132,6 +132,9 @@ section {
   object-fit: cover;
 }
 .camera-controls { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.camera-panel[hidden] { display: none; }
+.caret { animation: blink 1s step-end infinite; color: var(--brand); font-weight: 700; }
+@keyframes blink { 50% { opacity: 0; } }
 
 .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 12px 0; }
 

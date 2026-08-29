@@ -104,6 +104,13 @@ def test_explain_reports_tutor_mode():
     assert body["explanation"]
 
 
+def test_explain_stream_returns_text_and_mode_header():
+    r = client.post("/api/tutor/explain/stream", json={"topic": "fractions"})
+    assert r.status_code == 200
+    assert r.headers["x-tutor-mode"] == "mock"
+    assert "fractions" in r.text
+
+
 def test_teachme_mock():
     sid = client.post("/api/students", json={"name": "Teach Kid"}).json()["id"]
     r = client.post(

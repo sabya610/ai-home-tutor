@@ -75,6 +75,19 @@ def _teachme_user_prompt(
     )
 
 
+EXPLAIN_SYSTEM = (
+    "You are a friendly home tutor. Explain simply for a child at the given "
+    "grade level, using one everyday example. Keep it to 3-5 short sentences."
+)
+
+
+def _explain_messages(topic: str, grade_level: int) -> list[dict[str, str]]:
+    return [
+        {"role": "system", "content": EXPLAIN_SYSTEM},
+        {"role": "user", "content": f"Grade {grade_level}. Explain: {topic}"},
+    ]
+
+
 def extract_json(text: str) -> dict[str, Any] | None:
     """Best-effort parse of a JSON object from a model reply.
 
@@ -395,22 +408,34 @@ class AIClient:
             model=model,
             temperature=0.4,
             max_tokens=self.settings.tutor_max_tokens,
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You are a friendly home tutor. Explain simply for a child "
-                        "at the given grade level, using one everyday example. "
-                        "Keep it to 3-5 short sentences."
-                    ),
-                },
-                {
-                    "role": "user",
-                    "content": f"Grade {grade_level}. Explain: {topic}",
-                },
-            ],
+            messages=_explain_messages(topic, grade_level),
         )
         return (resp.choices[0].message.content or "").strip()
+
+    def explain_stream(self, topic: str, grade_level: int = 3, mode: str = "auto"):
+        """Yield the explanation in text chunks so the UI can render as it streams."""
+        client, model, _use_json, _resolved = self._resolve_tutor(mode)
+        if client is None:
+            demo = (
+                f"Let's learn about {topic}! Imagine it with a simple example, "
+                "then we'll try one together."
+            )
+            for word in demo.split(" "):
+                yield word + " "
+            return
+        stream = client.chat.completions.create(
+            model=model,
+            temperature=0.4,
+            max_tokens=self.settings.tutor_max_tokens,
+            stream=True,
+            messages=_explain_messages(topic, grade_level),
+        )
+        for chunk in stream:
+            if not chunk.choices:
+                continue
+            delta = chunk.choices[0].delta.content
+            if delta:
+                yield delta
 
     # -- Diagnostics ----------------------------------------------------
     def provider_info(self) -> dict[str, Any]:
