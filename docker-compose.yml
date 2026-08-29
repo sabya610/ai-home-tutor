@@ -1,12 +1,27 @@
 services:
+  ollama:
+    image: sabya610/ai-home-tutor-ollama:1b
+    container_name: ai-home-tutor-ollama
+    ports:
+      - "11434:11434"
+    restart: unless-stopped
+
   tutor:
     build: .
-    image: sabya610/ai-home-tutor:v4
+    image: sabya610/ai-home-tutor:v5
     container_name: ai-home-tutor
+    depends_on:
+      - ollama
     ports:
       - "8000:8000"
     env_file:
       - .env
+    environment:
+      AI_MODE: auto
+      TUTOR_BASE_URL: http://ollama:11434/v1
+      TUTOR_MODEL: llama3.2:1b
+      TUTOR_API_KEY: not-needed
+      TUTOR_MAX_TOKENS: "220"
     volumes:
       - ./data:/app/backend/data
     restart: unless-stopped

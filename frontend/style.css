@@ -146,6 +146,7 @@ input[type="text"], textarea, select {
 }
 .row label { display: inline-flex; align-items: center; gap: 6px; margin: 0; }
 .row select, .row input { width: auto; }
+#ask-question { flex: 1; min-width: 280px; max-width: 520px; }
 
 button {
   border: none;

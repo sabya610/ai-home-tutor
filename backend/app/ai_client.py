@@ -258,6 +258,7 @@ class AIClient:
         kwargs: dict[str, Any] = {
             "model": model,
             "temperature": 0.2,
+            "max_tokens": self.settings.tutor_max_tokens,
             "messages": [
                 {"role": "system", "content": HOMEWORK_SYSTEM},
                 {
@@ -296,6 +297,7 @@ class AIClient:
         kwargs: dict[str, Any] = {
             "model": model,
             "temperature": 0.3,
+            "max_tokens": self.settings.tutor_max_tokens,
             "messages": [
                 {"role": "system", "content": TEACHME_SYSTEM},
                 {
@@ -369,6 +371,7 @@ class AIClient:
         kwargs: dict[str, Any] = {
             "model": model,
             "temperature": 0.3,
+            "max_tokens": self.settings.tutor_max_tokens,
             "messages": messages,
         }
         if use_json:
@@ -391,12 +394,14 @@ class AIClient:
         resp = client.chat.completions.create(
             model=model,
             temperature=0.4,
+            max_tokens=self.settings.tutor_max_tokens,
             messages=[
                 {
                     "role": "system",
                     "content": (
-                        "You are a home tutor. Explain simply for a child at the "
-                        "given grade level, using one everyday example."
+                        "You are a friendly home tutor. Explain simply for a child "
+                        "at the given grade level, using one everyday example. "
+                        "Keep it to 3-5 short sentences."
                     ),
                 },
                 {

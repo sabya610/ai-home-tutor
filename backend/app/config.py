@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     # Model used for the "cloud" tutor mode when the default tutor is a custom
     # endpoint (so the UI can offer OpenAI as an alternative).
     cloud_tutor_model: str = "gpt-4o-mini"
+    # Cap tutor response length (keeps slow local models responsive).
+    tutor_max_tokens: int = 512
 
     db_path: str = "data/tutor.db"
 

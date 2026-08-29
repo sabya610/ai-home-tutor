@@ -317,9 +317,9 @@ function setDictLevel(word) {
 }
 
 const VOICE_HELP =
-  "Say: “dictation” · “homework” · “teach me” · “progress” · “new sentence” · " +
-  "“read it” · “level two” · “start/stop camera” · “check” · “send” · “start over”. " +
-  "Anything else becomes your written answer.";
+  "Ask me anything: “teach me the 2 times table” · “what is cut copy paste” · “explain fractions”. " +
+  "Commands: “dictation” · “homework” · “teach me” · “ask” · “progress” · “new sentence” · " +
+  "“read it” · “level two” · “start/stop camera” · “check” · “send”.";
 
 function flashVoice(msg) {
   const s = $("voice-status");
@@ -334,7 +334,8 @@ function showVoiceHelp() {
 function runVoiceCommand(t) {
   if (["dictation", "go to dictation", "open dictation", "dictation tab"].includes(t)) { switchTab("dictation"); return "Dictation"; }
   if (["homework", "go to homework", "open homework", "homework tab"].includes(t)) { switchTab("homework"); return "Homework"; }
-  if (["teach me", "teachme", "go to teach me", "open teach me"].includes(t)) { switchTab("teachme"); return "Teach Me"; }
+  if (['teach me', 'teachme', 'go to teach me', 'open teach me'].includes(t)) { switchTab('teachme'); return 'Teach Me'; }
+  if (['ask', 'ask the tutor', 'go to ask', 'questions'].includes(t)) { switchTab('ask'); return 'Ask'; }
   if (["progress", "show progress", "go to progress", "my progress"].includes(t)) { switchTab("progress"); return "Progress"; }
   if (["help", "what can i say", "voice help", "commands"].includes(t)) { showVoiceHelp(); return "Help"; }
 
@@ -378,8 +379,10 @@ function handleVoicePhrase(raw) {
   const t = raw.toLowerCase().replace(/[.?!,]+$/g, "").trim();
   if (!t) return;
   const cmd = runVoiceCommand(t);
-  if (cmd) flashVoice("✓ " + cmd);
-  else if (routeVoiceContent(raw.trim())) flashVoice("📝 " + raw.trim().slice(0, 48));
+  if (cmd) { flashVoice("✓ " + cmd); return; }
+  const topic = extractAskTopic(t);
+  if (topic) { flashVoice("🗣️ Asking: " + topic); askTutor(topic); return; }
+  if (routeVoiceContent(raw.trim())) flashVoice("📝 " + raw.trim().slice(0, 48));
 }
 
 function onVoiceResult(e) {
@@ -534,6 +537,49 @@ function renderTeachMeFinal(r) {
     </div>
     ${r.feedback ? `<div class="callout ${good ? "good" : "hint"}">${escapeHtml(r.feedback)}</div>` : ""}`;
 }
+
+// ---- Ask the tutor -------------------------------------------------
+function extractAskTopic(t) {
+  const m = t.match(
+    /^(?:teach me|explain|tell me about|what is|what's|what are|how do i|how do|how does|how to|why is|why does|why do)\s+(.+)$/
+  );
+  return m ? m[1].replace(/^about\s+/, "").trim() : null;
+}
+
+async function askTutor(topic) {
+  topic = (topic || "").trim();
+  if (!topic) return;
+  switchTab("ask");
+  $("ask-question").value = topic;
+  const el = $("ask-result");
+  el.hidden = false;
+  el.innerHTML = `<div class="callout hint">🤔 Thinking about “${escapeHtml(topic)}”…</div>`;
+  try {
+    const r = await api("/api/tutor/explain", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        topic,
+        grade_level: studentGrade(),
+        tutor_mode: currentTutorMode(),
+      }),
+    });
+    el.innerHTML = `
+      <div class="scorecard">
+        <div><b>🗣️ ${escapeHtml(topic)}</b>${r.tutor_mode ? ` <span class="chip">via ${escapeHtml(r.tutor_mode)}</span>` : ""}</div>
+      </div>
+      <div class="callout good">${escapeHtml(r.explanation)}</div>
+      ${r.tutor_mode === "mock" ? `<div class="muted tiny">Demo answer — choose a real Tutor (Cloud/Cluster) above for a full explanation.</div>` : ""}`;
+    speak(r.explanation);
+  } catch (err) {
+    showError(el, err.message);
+  }
+}
+
+$("ask-btn").addEventListener("click", () => askTutor($("ask-question").value));
+$("ask-question").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") askTutor($("ask-question").value);
+});
 
 // ---- Progress ------------------------------------------------------
 $("refresh-progress").addEventListener("click", loadProgress);
