@@ -8,7 +8,7 @@ services:
 
   tutor:
     build: .
-    image: sabya610/ai-home-tutor:v10
+    image: sabya610/ai-home-tutor:v11
     container_name: ai-home-tutor
     depends_on:
       - ollama
@@ -26,6 +26,11 @@ services:
       # next to this file — never commit the real key.
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       CLOUD_TUTOR_MODEL: ${CLOUD_TUTOR_MODEL:-gpt-5.6-luna}
+      # Corporate proxy TLS: mount its root CA and set OPENAI_CA_BUNDLE to the
+      # in-container path, or set OPENAI_INSECURE_SKIP_VERIFY=1 (dev-only).
+      OPENAI_CA_BUNDLE: ${OPENAI_CA_BUNDLE:-}
+      OPENAI_INSECURE_SKIP_VERIFY: ${OPENAI_INSECURE_SKIP_VERIFY:-false}
     volumes:
       - ./data:/app/backend/data
+      # - ./corp-proxy-ca.pem:/certs/corp-ca.pem:ro   # then OPENAI_CA_BUNDLE=/certs/corp-ca.pem
     restart: unless-stopped

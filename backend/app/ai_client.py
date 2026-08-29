@@ -218,14 +218,22 @@ class AIClient:
             self._tutor_clients[mode] = client
         return client, target["model"], bool(target["json"]), mode
 
-    @staticmethod
-    def _build_client(base_url: str, api_key: str) -> Any:
-        from openai import OpenAI  # lazy import so mock mode needs no network
+    def _build_client(self, base_url: str, api_key: str) -> Any:
+        from openai import DefaultHttpxClient, OpenAI  # lazy: mock mode needs no import
 
         # llama.cpp ignores the key but the SDK requires a non-empty string.
         kwargs: dict[str, Any] = {"api_key": api_key or "not-needed"}
         if base_url:
             kwargs["base_url"] = base_url
+        # Corporate proxies often intercept HTTPS with their own CA; trust it via a
+        # bundle, or (dev-only) skip verification when explicitly opted in.
+        verify: Any = None
+        if self.settings.openai_insecure_skip_verify:
+            verify = False
+        elif self.settings.openai_ca_bundle:
+            verify = self.settings.openai_ca_bundle
+        if verify is not None:
+            kwargs["http_client"] = DefaultHttpxClient(verify=verify)
         return OpenAI(**kwargs)
 
     def _completion_kwargs(
