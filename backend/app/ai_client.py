@@ -218,31 +218,68 @@ class AIClient:
             self._tutor_clients[mode] = client
         return client, target["model"], bool(target["json"]), mode
 
-    @staticmethod
-    def _build_client(base_url: str, api_key: str) -> Any:
-        from openai import OpenAI  # lazy import so mock mode needs no network
+    def _build_client(self, base_url: str, api_key: str) -> Any:
+        from openai import DefaultHttpxClient, OpenAI  # lazy: mock mode needs no import
 
         # llama.cpp ignores the key but the SDK requires a non-empty string.
         kwargs: dict[str, Any] = {"api_key": api_key or "not-needed"}
         if base_url:
             kwargs["base_url"] = base_url
+        # Corporate proxies often intercept HTTPS with their own CA; trust it via a
+        # bundle, or (dev-only) skip verification when explicitly opted in.
+        verify: Any = None
+        if self.settings.openai_insecure_skip_verify:
+            verify = False
+        elif self.settings.openai_ca_bundle:
+            verify = self.settings.openai_ca_bundle
+        if verify is not None:
+            kwargs["http_client"] = DefaultHttpxClient(verify=verify)
         return OpenAI(**kwargs)
 
-    def _token_limit_kwargs(self, mode: str, limit: int | None = None) -> dict[str, int]:
-        """Token-cap kwarg named per endpoint: OpenAI's newer models (GPT-5.x)
-        require ``max_completion_tokens``; llama.cpp / Ollama use ``max_tokens``."""
-        if limit is None:
-            limit = self.settings.tutor_max_tokens
+    def _completion_kwargs(
+        self, mode: str, temperature: float, max_tokens: int | None = None
+    ) -> dict[str, Any]:
+        """Per-endpoint create() kwargs. OpenAI's newer models (GPT-5.x / o-series)
+        require ``max_completion_tokens`` and reject a custom ``temperature``;
+        llama.cpp / Ollama use ``max_tokens`` and honor ``temperature``."""
+        limit = self.settings.tutor_max_tokens if max_tokens is None else max_tokens
         target = self.settings.tutor_mode_targets().get(mode, {})
-        param = "max_tokens" if target.get("base_url") else "max_completion_tokens"
-        return {param: limit}
+        if target.get("base_url"):  # llama.cpp / Ollama endpoint
+            return {"temperature": temperature, "max_tokens": limit}
+        return {"max_completion_tokens": limit}  # OpenAI: only default temperature
+
+    @staticmethod
+    def _unsupported_param(exc: Any) -> str | None:
+        """The parameter name an OpenAI 400 flags as unsupported, if any."""
+        body = getattr(exc, "body", None)
+        if isinstance(body, dict):
+            err = body.get("error") or {}
+            if err.get("code") in {"unsupported_parameter", "unsupported_value"}:
+                return err.get("param")
+        return None
+
+    def _create(self, client: Any, **kwargs: Any) -> Any:
+        """chat.completions.create that drops any parameter the model rejects and
+        retries — newer OpenAI models restrict several (temperature, max_tokens…)."""
+        from openai import BadRequestError
+
+        for _ in range(5):
+            try:
+                return client.chat.completions.create(**kwargs)
+            except BadRequestError as exc:
+                param = self._unsupported_param(exc)
+                if not param or param not in kwargs:
+                    raise
+                kwargs.pop(param)
+        return client.chat.completions.create(**kwargs)
 
     # -- Vision ---------------------------------------------------------
     def transcribe_image(self, image_bytes: bytes, mime: str = "image/jpeg") -> str:
         if self.vision_mock:
             return "the quick brown fox jumps over the lazy dog"
         b64 = base64.b64encode(image_bytes).decode("ascii")
-        resp = self._vision.chat.completions.create(
+        resp = self._create(
+            self._vision,
             model=self.settings.vision_model,
             temperature=0,
             messages=[
@@ -279,8 +316,7 @@ class AIClient:
             }
         kwargs: dict[str, Any] = {
             "model": model,
-            "temperature": 0.2,
-            **self._token_limit_kwargs(resolved),
+            **self._completion_kwargs(resolved, 0.2),
             "messages": [
                 {"role": "system", "content": HOMEWORK_SYSTEM},
                 {
@@ -291,7 +327,7 @@ class AIClient:
         }
         if use_json:
             kwargs["response_format"] = {"type": "json_object"}
-        resp = client.chat.completions.create(**kwargs)
+        resp = self._create(client, **kwargs)
         result = coerce_homework(resp.choices[0].message.content or "")
         result["tutor_mode"] = resolved
         return result
@@ -318,8 +354,7 @@ class AIClient:
             }
         kwargs: dict[str, Any] = {
             "model": model,
-            "temperature": 0.3,
-            **self._token_limit_kwargs(resolved),
+            **self._completion_kwargs(resolved, 0.3),
             "messages": [
                 {"role": "system", "content": TEACHME_SYSTEM},
                 {
@@ -332,7 +367,7 @@ class AIClient:
         }
         if use_json:
             kwargs["response_format"] = {"type": "json_object"}
-        resp = client.chat.completions.create(**kwargs)
+        resp = self._create(client, **kwargs)
         result = coerce_teachme(resp.choices[0].message.content or "")
         result["tutor_mode"] = resolved
         return result
@@ -392,13 +427,12 @@ class AIClient:
         messages.append({"role": "user", "content": instruction})
         kwargs: dict[str, Any] = {
             "model": model,
-            "temperature": 0.3,
-            **self._token_limit_kwargs(resolved),
+            **self._completion_kwargs(resolved, 0.3),
             "messages": messages,
         }
         if use_json:
             kwargs["response_format"] = {"type": "json_object"}
-        resp = client.chat.completions.create(**kwargs)
+        resp = self._create(client, **kwargs)
         result = coerce_teachme_turn(
             resp.choices[0].message.content or "", force_done=force_done
         )
@@ -413,11 +447,11 @@ class AIClient:
                 f"Let's learn about {topic}! Imagine it with a simple example, "
                 "then we'll try one together."
             )
-        resp = client.chat.completions.create(
+        resp = self._create(
+            client,
             model=model,
-            temperature=0.4,
             messages=_explain_messages(topic, grade_level),
-            **self._token_limit_kwargs(resolved),
+            **self._completion_kwargs(resolved, 0.4),
         )
         return (resp.choices[0].message.content or "").strip()
 
@@ -432,12 +466,12 @@ class AIClient:
             for word in demo.split(" "):
                 yield word + " "
             return
-        stream = client.chat.completions.create(
+        stream = self._create(
+            client,
             model=model,
-            temperature=0.4,
             stream=True,
             messages=_explain_messages(topic, grade_level),
-            **self._token_limit_kwargs(resolved),
+            **self._completion_kwargs(resolved, 0.4),
         )
         for chunk in stream:
             if not chunk.choices:
@@ -469,11 +503,11 @@ class AIClient:
         if client is None:
             return {"ok": True, "mock": True, "tutor_mode": resolved}
         try:
-            resp = client.chat.completions.create(
+            resp = self._create(
+                client,
                 model=model,
-                temperature=0,
                 messages=[{"role": "user", "content": "Reply with the word OK."}],
-                **self._token_limit_kwargs(resolved, 5),
+                **self._completion_kwargs(resolved, 0, 5),
             )
             return {
                 "ok": True,

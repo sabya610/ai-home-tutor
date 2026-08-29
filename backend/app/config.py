@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     # Shared OpenAI defaults, used when a per-role value below is blank.
     openai_api_key: str = ""
     openai_base_url: str = ""
+    # TLS to OpenAI behind a corporate proxy that intercepts HTTPS: point this at
+    # the proxy's root CA (PEM) so verification passes. Dev-only escape hatch:
+    # openai_insecure_skip_verify disables verification entirely.
+    openai_ca_bundle: str = ""
+    openai_insecure_skip_verify: bool = False
 
     # Vision role (handwriting OCR) — needs a vision-capable model.
     vision_model: str = "gpt-4o"
