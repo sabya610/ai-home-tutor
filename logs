@@ -1,3 +1,8 @@
+      OPENAI_API_KEY=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
+      CLOUD_TUTOR_MODEL=gpt-5.6-luna
+
+
+
 C:\Users\sohini\Downloads>docker compose -f docker-compose.yml up
 [+] up 12/12
  ✔ Image sabya610/ai-home-tutor:v9 Pulled                                                                           4.5s
