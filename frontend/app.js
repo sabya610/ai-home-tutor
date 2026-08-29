@@ -166,12 +166,7 @@ $("new-sentence").addEventListener("click", async () => {
 });
 
 $("read-sentence").addEventListener("click", () => {
-  const text = $("dict-sentence").textContent.trim();
-  if (!text || !("speechSynthesis" in window)) return;
-  const u = new SpeechSynthesisUtterance(text);
-  u.rate = 0.9;
-  speechSynthesis.cancel();
-  speechSynthesis.speak(u);
+  speak($("dict-sentence").textContent.trim());
 });
 
 $("dict-check").addEventListener("click", async () => {
@@ -283,56 +278,185 @@ function speak(text) {
   if (!text || !("speechSynthesis" in window)) return;
   const u = new SpeechSynthesisUtterance(text);
   u.rate = 0.95;
+  // Mute the voice-command mic while the app talks, so it doesn't hear itself.
+  VOICE.suppress = true;
+  clearTimeout(VOICE._suppressTimer);
+  VOICE._suppressTimer = setTimeout(() => (VOICE.suppress = false), 12000);
+  const release = () => {
+    clearTimeout(VOICE._suppressTimer);
+    VOICE.suppress = false;
+  };
+  u.onend = release;
+  u.onerror = release;
   speechSynthesis.cancel();
   speechSynthesis.speak(u);
 }
 
-let tmRecognizer = null;
-let tmListening = false;
+// ---- Voice control (hands-free commands + spoken input) ------------
+const VOICE = {
+  rec: null,
+  on: false,
+  wantOn: false,
+  suppress: false, // true while the app is speaking (avoid self-hearing)
+  _suppressTimer: null,
+  supported: !!(window.SpeechRecognition || window.webkitSpeechRecognition),
+};
 
-function initTeachMeMic() {
-  const btn = $("tm-record");
+function switchTab(name) {
+  const btn = document.querySelector('.tab[data-tab="' + name + '"]');
+  if (btn) btn.click();
+}
+function activeTab() {
+  const b = document.querySelector(".tab.active");
+  return b ? b.dataset.tab : null;
+}
+function setDictLevel(word) {
+  const map = { one: "1", two: "2", three: "3", "1": "1", "2": "2", "3": "3" };
+  const sel = $("dict-level");
+  if (sel && map[word]) sel.value = map[word];
+}
+
+const VOICE_HELP =
+  "Ask me anything: “teach me the 2 times table” · “what is cut copy paste” · “explain fractions”. " +
+  "Commands: “dictation” · “homework” · “teach me” · “ask” · “progress” · “new sentence” · " +
+  "“read it” · “level two” · “start/stop camera” · “check” · “send”.";
+
+function flashVoice(msg) {
+  const s = $("voice-status");
+  if (s) s.textContent = msg;
+}
+function showVoiceHelp() {
+  flashVoice(VOICE_HELP);
+}
+
+// Commands are matched EXACTLY (after lowercasing + trimming punctuation) so a
+// long spoken answer never accidentally triggers an action.
+function runVoiceCommand(t) {
+  if (["dictation", "go to dictation", "open dictation", "dictation tab"].includes(t)) { switchTab("dictation"); return "Dictation"; }
+  if (["homework", "go to homework", "open homework", "homework tab"].includes(t)) { switchTab("homework"); return "Homework"; }
+  if (['teach me', 'teachme', 'go to teach me', 'open teach me'].includes(t)) { switchTab('teachme'); return 'Teach Me'; }
+  if (['ask', 'ask the tutor', 'go to ask', 'questions'].includes(t)) { switchTab('ask'); return 'Ask'; }
+  if (["progress", "show progress", "go to progress", "my progress"].includes(t)) { switchTab("progress"); return "Progress"; }
+  if (["help", "what can i say", "voice help", "commands"].includes(t)) { showVoiceHelp(); return "Help"; }
+
+  if (["start camera", "turn on camera", "camera on", "open camera"].includes(t)) { startCamera(); return "Camera on"; }
+  if (["stop camera", "turn off camera", "camera off", "close camera"].includes(t)) { stopCamera(); return "Camera off"; }
+
+  if (["new sentence", "next sentence", "another sentence", "give me a sentence"].includes(t)) { switchTab("dictation"); $("new-sentence").click(); return "New sentence"; }
+  if (["read it", "read the sentence", "read again", "say it again", "repeat", "repeat it"].includes(t)) { switchTab("dictation"); $("read-sentence").click(); return "Reading"; }
+  const lvl = t.match(/^level (one|two|three|[123])$/);
+  if (lvl) { switchTab("dictation"); setDictLevel(lvl[1]); return "Level " + lvl[1]; }
+  if (["check my writing", "check writing", "check the writing"].includes(t)) { switchTab("dictation"); $("dict-check").click(); return "Checking writing"; }
+
+  if (["check my answer", "check answer", "check the answer", "check homework"].includes(t)) { switchTab("homework"); $("hw-check").click(); return "Checking answer"; }
+
+  if (["send", "send it", "send answer", "submit", "done explaining"].includes(t)) { if (activeTab() === "teachme") { $("tm-send").click(); return "Sent"; } }
+  if (["start over", "reset", "clear", "new conversation"].includes(t)) { if (activeTab() === "teachme") { $("tm-restart").click(); return "Reset"; } }
+
+  if (["check", "check it", "check please", "check now", "check my work"].includes(t)) {
+    const tab = activeTab();
+    if (tab === "dictation") { $("dict-check").click(); return "Checking writing"; }
+    if (tab === "homework") { $("hw-check").click(); return "Checking answer"; }
+    if (tab === "teachme") { $("tm-send").click(); return "Sent"; }
+  }
+  return null;
+}
+
+function routeVoiceContent(text) {
+  const tab = activeTab();
+  let target = null;
+  if (tab === "dictation") target = $("dict-typed");
+  else if (tab === "homework") target = $("hw-typed");
+  else if (tab === "teachme") target = $("tm-explanation");
+  if (!target) return false;
+  const details = target.closest("details");
+  if (details && !details.open) details.open = true; // reveal “Type instead”
+  target.value = (target.value ? target.value.trim() + " " : "") + text;
+  return true;
+}
+
+function handleVoicePhrase(raw) {
+  const t = raw.toLowerCase().replace(/[.?!,]+$/g, "").trim();
+  if (!t) return;
+  const cmd = runVoiceCommand(t);
+  if (cmd) { flashVoice("✓ " + cmd); return; }
+  const topic = extractAskTopic(t);
+  if (topic) { flashVoice("🗣️ Asking: " + topic); askTutor(topic); return; }
+  if (routeVoiceContent(raw.trim())) flashVoice("📝 " + raw.trim().slice(0, 48));
+}
+
+function onVoiceResult(e) {
+  if (VOICE.suppress) return;
+  let interim = "";
+  for (let i = e.resultIndex; i < e.results.length; i++) {
+    const res = e.results[i];
+    if (res.isFinal) handleVoicePhrase(res[0].transcript);
+    else interim += res[0].transcript;
+  }
+  if (interim) flashVoice("… " + interim.trim());
+}
+
+function voiceUpdateUI() {
+  const b = $("voice-toggle");
+  if (b) {
+    b.textContent = VOICE.on ? "🎙️ Listening — stop" : "🎙️ Voice off";
+    b.classList.toggle("listening", VOICE.on);
+  }
+  const tm = $("tm-record");
+  if (tm) tm.textContent = VOICE.on ? "⏹ Stop listening" : "🎤 Explain out loud";
+  const trs = $("tm-rec-status");
+  if (trs) trs.textContent = VOICE.on ? "Listening…" : "Tap, then talk";
+}
+
+function voiceStart() {
+  if (!VOICE.supported || VOICE.wantOn) return;
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) {
-    btn.disabled = true;
-    $("tm-rec-status").textContent = "Voice not supported — type your explanation.";
+  const r = new SR();
+  VOICE.rec = r;
+  r.lang = "en-US";
+  r.interimResults = true;
+  r.continuous = true;
+  r.onstart = () => { VOICE.on = true; voiceUpdateUI(); flashVoice(VOICE_HELP); };
+  r.onresult = onVoiceResult;
+  r.onerror = (e) => { if (e.error !== "no-speech") flashVoice("Mic: " + e.error); };
+  r.onend = () => {
+    VOICE.on = false;
+    voiceUpdateUI();
+    if (VOICE.wantOn) { try { r.start(); } catch (_) {} } // stay continuous
+  };
+  VOICE.wantOn = true;
+  try { r.start(); } catch (_) {}
+}
+
+function voiceStop() {
+  VOICE.wantOn = false;
+  if (VOICE.rec) { try { VOICE.rec.stop(); } catch (_) {} }
+  VOICE.on = false;
+  voiceUpdateUI();
+  flashVoice("");
+}
+
+function voiceToggle() {
+  if (VOICE.wantOn) voiceStop();
+  else voiceStart();
+}
+
+function initVoiceControl() {
+  const b = $("voice-toggle");
+  const help = $("voice-help");
+  const tm = $("tm-record");
+  if (!VOICE.supported) {
+    if (b) { b.disabled = true; b.textContent = "🎙️ not supported"; }
+    if (tm) tm.disabled = true;
+    if ($("tm-rec-status")) $("tm-rec-status").textContent = "Voice needs Chrome/Edge — type instead.";
+    flashVoice("Voice commands need Chrome or Edge.");
     return;
   }
-  btn.addEventListener("click", () => {
-    if (tmListening) {
-      if (tmRecognizer) tmRecognizer.stop();
-      return;
-    }
-    const r = new SR();
-    tmRecognizer = r;
-    r.lang = "en-US";
-    r.interimResults = true;
-    r.continuous = true;
-    let base = $("tm-explanation").value ? $("tm-explanation").value.trim() + " " : "";
-    r.onstart = () => {
-      tmListening = true;
-      btn.textContent = "⏹ Stop";
-      $("tm-rec-status").textContent = "Listening…";
-    };
-    r.onresult = (e) => {
-      let interim = "";
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const t = e.results[i][0].transcript;
-        if (e.results[i].isFinal) base += t + " ";
-        else interim += t;
-      }
-      $("tm-explanation").value = (base + interim).trim();
-    };
-    r.onerror = (e) => {
-      $("tm-rec-status").textContent = "Mic error: " + e.error;
-    };
-    r.onend = () => {
-      tmListening = false;
-      btn.textContent = "🎤 Explain out loud";
-      $("tm-rec-status").textContent = "Tap, then talk";
-    };
-    r.start();
-  });
+  if (b) b.addEventListener("click", voiceToggle);
+  if (help) help.addEventListener("click", showVoiceHelp);
+  // “Explain out loud” shares the same engine and focuses the Teach Me tab.
+  if (tm) tm.addEventListener("click", () => { switchTab("teachme"); voiceToggle(); });
+  voiceUpdateUI();
 }
 
 let tmTurns = [];
@@ -414,6 +538,49 @@ function renderTeachMeFinal(r) {
     ${r.feedback ? `<div class="callout ${good ? "good" : "hint"}">${escapeHtml(r.feedback)}</div>` : ""}`;
 }
 
+// ---- Ask the tutor -------------------------------------------------
+function extractAskTopic(t) {
+  const m = t.match(
+    /^(?:teach me|explain|tell me about|what is|what's|what are|how do i|how do|how does|how to|why is|why does|why do)\s+(.+)$/
+  );
+  return m ? m[1].replace(/^about\s+/, "").trim() : null;
+}
+
+async function askTutor(topic) {
+  topic = (topic || "").trim();
+  if (!topic) return;
+  switchTab("ask");
+  $("ask-question").value = topic;
+  const el = $("ask-result");
+  el.hidden = false;
+  el.innerHTML = `<div class="callout hint">🤔 Thinking about “${escapeHtml(topic)}”…</div>`;
+  try {
+    const r = await api("/api/tutor/explain", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        topic,
+        grade_level: studentGrade(),
+        tutor_mode: currentTutorMode(),
+      }),
+    });
+    el.innerHTML = `
+      <div class="scorecard">
+        <div><b>🗣️ ${escapeHtml(topic)}</b>${r.tutor_mode ? ` <span class="chip">via ${escapeHtml(r.tutor_mode)}</span>` : ""}</div>
+      </div>
+      <div class="callout good">${escapeHtml(r.explanation)}</div>
+      ${r.tutor_mode === "mock" ? `<div class="muted tiny">Demo answer — choose a real Tutor (Cloud/Cluster) above for a full explanation.</div>` : ""}`;
+    speak(r.explanation);
+  } catch (err) {
+    showError(el, err.message);
+  }
+}
+
+$("ask-btn").addEventListener("click", () => askTutor($("ask-question").value));
+$("ask-question").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") askTutor($("ask-question").value);
+});
+
 // ---- Progress ------------------------------------------------------
 $("refresh-progress").addEventListener("click", loadProgress);
 
@@ -453,7 +620,7 @@ function escapeHtml(s) {
 (async function init() {
   const health = await api("/api/health").catch(() => ({ ai_mode: "?" }));
   $("ai-badge").textContent = "AI: " + (health.ai_mode || "?");
-  initTeachMeMic();
+  initVoiceControl();
   await loadTutorModes();
   await loadStudents();
 })();

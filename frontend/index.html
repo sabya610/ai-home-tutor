@@ -20,11 +20,20 @@
         <select id="tutor-mode" title="Which AI answers homework"></select>
         <span id="tutor-mode-hint" class="tiny"></span>
       </div>
+      <div class="mode-bar voice-bar">
+        <label>🎙️ Voice:</label>
+        <button id="voice-toggle" class="ghost">🎙️ Voice off</button>
+        <button id="voice-help" class="ghost" title="What can I say?">?</button>
+        <span id="voice-status" class="tiny"></span>
+      </div>
     </header>
 
     <nav class="tabs">
       <button class="tab active" data-tab="dictation">✏️ Dictation</button>
-      <button class="tab" data-tab="homework">🧮 Homework</button>      <button class="tab" data-tab="teachme">🧠 Teach Me</button>      <button class="tab" data-tab="progress">📈 Progress</button>
+      <button class="tab" data-tab="homework">🧮 Homework</button>
+      <button class="tab" data-tab="teachme">🧠 Teach Me</button>
+      <button class="tab" data-tab="ask">🗣️ Ask</button>
+      <button class="tab" data-tab="progress">📈 Progress</button>
     </nav>
 
     <main>
@@ -113,6 +122,21 @@
           <button id="tm-restart" class="ghost">🔄 Start over</button>
         </div>
         <div id="tm-result" class="result" hidden></div>
+      </section>
+
+      <!-- Ask -->
+      <section id="tab-ask" class="tab-content">
+        <h2>Ask the tutor</h2>
+        <p class="muted tiny">
+          Ask a question and the tutor explains it. Try voice while listening:
+          “teach me the 2 times table”, “what is cut, copy and paste”,
+          “explain fractions”.
+        </p>
+        <div class="row">
+          <input id="ask-question" type="text" placeholder="e.g. Teach me the 2 times table" />
+          <button id="ask-btn" class="primary">🗣️ Ask</button>
+        </div>
+        <div id="ask-result" class="result" hidden></div>
       </section>
 
       <!-- Progress -->
