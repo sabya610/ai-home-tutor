@@ -8,7 +8,7 @@ services:
 
   tutor:
     build: .
-    image: sabya610/ai-home-tutor:v6
+    image: sabya610/ai-home-tutor:v7
     container_name: ai-home-tutor
     depends_on:
       - ollama

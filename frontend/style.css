@@ -43,6 +43,11 @@ header h1 { margin: 0 0 8px; font-size: 22px; }
 .mode-bar select { padding: 4px 8px; border-radius: 8px; border: none; }
 .mode-bar .tiny { color: #d5e0ff; }
 
+/* Ghost buttons sit on the blue header — a light fill stops the brand-blue
+   label from being blue-on-blue (invisible). Beats `button.ghost` on specificity. */
+header button.ghost { background: #eef2fe; color: var(--brand); border-color: #c9d3ec; }
+header button.ghost:hover { background: #dde5fd; }
+
 .voice-bar button { background: #eef2fe; color: var(--brand); }
 .voice-bar #voice-help { padding: 6px 10px; }
 .voice-bar #voice-status { max-width: 520px; }
