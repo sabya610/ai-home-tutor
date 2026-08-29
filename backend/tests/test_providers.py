@@ -122,7 +122,7 @@ def test_tutor_modes_cloud_and_cluster_listed():
     assert targets["cloud"]["model"] == "gpt-5.6-luna"  # cloud fallback model
 
 
-def test_token_limit_kwarg_named_per_endpoint():
+def test_completion_kwargs_named_per_endpoint():
     ai = AIClient(
         Settings(
             ai_mode="auto",
@@ -132,9 +132,23 @@ def test_token_limit_kwarg_named_per_endpoint():
             _env_file=None,
         )
     )
-    # OpenAI's newer models need max_completion_tokens; llama.cpp/Ollama need max_tokens.
-    assert "max_tokens" in ai._token_limit_kwargs("cluster")
-    assert "max_completion_tokens" in ai._token_limit_kwargs("cloud")
+    cluster = ai._completion_kwargs("cluster", 0.3)
+    cloud = ai._completion_kwargs("cloud", 0.3)
+    # llama.cpp/Ollama honors temperature + max_tokens.
+    assert cluster["temperature"] == 0.3 and "max_tokens" in cluster
+    # OpenAI GPT-5.x: max_completion_tokens, and NO custom temperature.
+    assert "max_completion_tokens" in cloud and "temperature" not in cloud
+
+
+def test_unsupported_param_extraction():
+    class Exc:
+        body = {"error": {"code": "unsupported_parameter", "param": "max_tokens"}}
+
+    class Other:
+        body = {"error": {"code": "invalid_api_key", "param": None}}
+
+    assert AIClient._unsupported_param(Exc()) == "max_tokens"
+    assert AIClient._unsupported_param(Other()) is None
 
 
 def test_resolve_tutor_mode_falls_back():
