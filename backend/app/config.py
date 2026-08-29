@@ -33,8 +33,9 @@ class Settings(BaseSettings):
     tutor_api_key: str = ""
     tutor_json_mode: str = "auto"  # auto | json | prompt
     # Model used for the "cloud" tutor mode when the default tutor is a custom
-    # endpoint (so the UI can offer OpenAI as an alternative).
-    cloud_tutor_model: str = "gpt-4o-mini"
+    # endpoint (so the UI can offer OpenAI as an alternative). GPT-5.6 Luna;
+    # override with CLOUD_TUTOR_MODEL if the exact model id differs.
+    cloud_tutor_model: str = "gpt-5.6-luna"
     # Cap tutor response length (keeps slow local models responsive).
     tutor_max_tokens: int = 512
 

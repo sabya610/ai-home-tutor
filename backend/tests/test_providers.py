@@ -118,7 +118,7 @@ def test_tutor_modes_cloud_and_cluster_listed():
     assert set(targets) >= {"cloud", "cluster", "mock"}
     assert s.default_tutor_mode() == "cluster"  # custom endpoint wins default
     assert targets["cluster"]["model"] == "llama3.1-8b"
-    assert targets["cloud"]["model"] == "gpt-4o-mini"  # cloud fallback model
+    assert targets["cloud"]["model"] == "gpt-5.6-luna"  # cloud fallback model
 
 
 def test_resolve_tutor_mode_falls_back():
