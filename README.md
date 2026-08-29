@@ -57,6 +57,35 @@ Open http://localhost:8000 → Start camera → try Dictation / Homework.
 Copy `.env.example` to `.env`, set `AI_MODE=auto` and `OPENAI_API_KEY=...`
 (your key from `OPEN_API_KEY.txt`). Then run uvicorn or Docker Compose.
 
+## Use a local Ollama LLM — no API key (recommended)
+
+A self-contained Ollama image with `llama3.2:1b` baked in is published as
+`sabya610/ai-home-tutor-ollama:1b`. The whole stack runs offline via compose:
+
+```powershell
+cd ai-home-tutor
+docker compose up          # starts ollama (llama3.2:1b) + the tutor
+```
+
+Or point a dev server at a standalone Ollama container:
+
+```powershell
+docker run -d -p 11434:11434 -e OLLAMA_KEEP_ALIVE=-1 sabya610/ai-home-tutor-ollama:1b
+```
+
+```env
+AI_MODE=auto
+TUTOR_BASE_URL=http://localhost:11434/v1
+TUTOR_MODEL=llama3.2:1b
+TUTOR_API_KEY=not-needed
+TUTOR_MAX_TOKENS=220        # cap keeps the CPU-only model responsive
+```
+
+Then open the **🗣️ Ask** tab (or say “teach me the 2 times table”). On CPU, 1b
+answers in ~15 s; on a GPU box you can rebuild `ollama/Dockerfile` with
+`llama3.2:3b` for higher quality. Vision (handwriting) stays mock unless you add
+a vision key — type answers or use dictation.
+
 ## Use your cluster llama3 (rag-app) as the tutor
 
 The tutor LLM (hints/scoring/explanations) can point at the llama3 served by
@@ -84,15 +113,15 @@ pytest -q
 
 ```powershell
 cd ai-home-tutor
-docker build -t sabya610/ai-home-tutor:v4 .
-docker run --rm -p 8000:8000 -e AI_MODE=mock sabya610/ai-home-tutor:v4
+docker build -t sabya610/ai-home-tutor:v5 .
+docker run --rm -p 8000:8000 -e AI_MODE=mock sabya610/ai-home-tutor:v5
 ```
 
 ## Push to Docker Hub (run yourself — needs your login)
 
 ```powershell
 docker login
-docker push sabya610/ai-home-tutor:v4
+docker push sabya610/ai-home-tutor:v5
 ```
 
 ## Privacy notes

@@ -350,6 +350,16 @@ Reach it via `kubectl port-forward svc/rag-app-service 8080:80` (local) or
 in-cluster DNS (`rag-app-service.rag-app.svc.cluster.local`). See
 [cluster/README.md](cluster/README.md).
 
+### Local Ollama backend (no API key)
+
+For a fully offline tutor, a self-contained Ollama image with `llama3.2:1b`
+baked in is published as `sabya610/ai-home-tutor-ollama:1b` (built from
+[ollama/Dockerfile](ollama/Dockerfile)). `docker compose up` runs it alongside
+the tutor (`TUTOR_BASE_URL=http://ollama:11434/v1`). Ollama exposes the same
+OpenAI-compatible `/v1`, so no app changes are needed — only env. On CPU, 1b
+answers in ~15 s (keep it warm with `OLLAMA_KEEP_ALIVE=-1`); a GPU box can
+rebuild the Dockerfile with `3b` for higher quality.
+
 ---
 
 ## 10. Configuration (env / `.env`)
@@ -361,9 +371,10 @@ in-cluster DNS (`rag-app-service.rag-app.svc.cluster.local`). See
 | `OPENAI_BASE_URL` | — | Shared OpenAI-compatible base URL |
 | `VISION_MODEL` | `gpt-4o` | Handwriting OCR model |
 | `VISION_BASE_URL` / `VISION_API_KEY` | — | Per-role vision overrides |
-| `TUTOR_MODEL` | `gpt-4o-mini` | Tutor model (set to `llama3.1-8b` for cluster) |
-| `TUTOR_BASE_URL` | — | Cluster llama3 endpoint (`…/v1`) |
-| `TUTOR_API_KEY` | — | Tutor key (`not-needed` for llama.cpp) |
+| `TUTOR_MODEL` | `gpt-4o-mini` | Tutor model (`llama3.2:1b` for Ollama, `llama3.1-8b` for cluster) |
+| `TUTOR_BASE_URL` | — | Custom tutor endpoint (`…/v1`) — local Ollama or cluster llama3 |
+| `TUTOR_API_KEY` | — | Tutor key (`not-needed` for Ollama/llama.cpp) |
+| `TUTOR_MAX_TOKENS` | `512` | Caps tutor response length (keeps slow local models responsive) |
 | `TUTOR_JSON_MODE` | `auto` | `auto` · `json` (native) · `prompt` (parse) |
 | `CLOUD_TUTOR_MODEL` | `gpt-4o-mini` | Cloud model when default tutor is the cluster |
 | `DB_PATH` | `data/tutor.db` | SQLite location |
