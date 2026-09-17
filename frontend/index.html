@@ -29,10 +29,45 @@
       <div class="mode-bar voice-bar">
         <label>🎙️ Voice:</label>
         <button id="voice-toggle" class="ghost">🎙️ Voice off</button>
-        <button id="voice-help" class="ghost" title="What can I say?">?</button>
+        <button id="voice-help" class="ghost" title="What can I say?" aria-label="Help — what can I say?" aria-haspopup="dialog">❓ Help</button>
         <span id="voice-status" class="tiny"></span>
       </div>
     </header>
+
+    <!-- Kid-friendly help popover for the “?” button -->
+    <div id="help-overlay" class="help-overlay" hidden>
+      <div class="help-card" role="dialog" aria-modal="true" aria-labelledby="help-title">
+        <button id="help-close" class="help-close" aria-label="Close help">✖</button>
+        <h2 id="help-title">🎤 What can I say?</h2>
+        <p class="help-lead">Turn on 🎙️ Voice, then tap a bubble or just say it out loud!</p>
+
+        <h3>🌟 Ask me anything</h3>
+        <div class="help-chips">
+          <button class="help-chip ask" data-ask="the 2 times table">Teach me the 2 times table</button>
+          <button class="help-chip ask" data-ask="cut, copy and paste">What is cut, copy and paste?</button>
+          <button class="help-chip ask" data-ask="fractions">Explain fractions</button>
+        </div>
+
+        <h3>🧭 Jump around</h3>
+        <div class="help-chips">
+          <button class="help-chip go" data-say="dictation">✏️ Dictation</button>
+          <button class="help-chip go" data-say="homework">🧮 Homework</button>
+          <button class="help-chip go" data-say="teach me">🧠 Teach Me</button>
+          <button class="help-chip go" data-say="ask">🗣️ Ask</button>
+          <button class="help-chip go" data-say="progress">📈 Progress</button>
+        </div>
+
+        <h3>🛠️ Handy words</h3>
+        <div class="help-chips">
+          <span class="help-word">“new sentence”</span>
+          <span class="help-word">“read it”</span>
+          <span class="help-word">“level two”</span>
+          <span class="help-word">“start camera”</span>
+          <span class="help-word">“check”</span>
+          <span class="help-word">“send”</span>
+        </div>
+      </div>
+    </div>
 
     <nav class="tabs">
       <button class="tab active" data-tab="dictation">✏️ Dictation</button>

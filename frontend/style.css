@@ -128,6 +128,98 @@ header button.ghost:hover { background: #f2eeff; }
   font-weight: 600;
 }
 
+/* ---------- Kid-friendly help popover ---------- */
+.help-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(53, 48, 107, 0.45);
+  backdrop-filter: blur(3px);
+  animation: help-fade 0.15s ease;
+}
+.help-overlay[hidden] { display: none; }
+@keyframes help-fade { from { opacity: 0; } to { opacity: 1; } }
+
+.help-card {
+  position: relative;
+  width: min(560px, 100%);
+  max-height: 86vh;
+  overflow-y: auto;
+  background: var(--card);
+  color: var(--ink);
+  border-radius: var(--radius);
+  padding: 26px 26px 30px;
+  box-shadow: var(--shadow);
+  animation: help-pop 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes help-pop { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+.help-card h2 {
+  margin: 0 0 6px;
+  font-family: "Baloo 2", "Fredoka", sans-serif;
+  font-size: 26px;
+  color: var(--brand);
+}
+.help-card h3 {
+  margin: 20px 0 8px;
+  font-size: 16px;
+  color: var(--ink);
+}
+.help-lead { margin: 0 0 8px; color: var(--muted); }
+
+.help-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.help-chip {
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 10px 16px;
+  border-radius: 999px;
+  color: #fff;
+  box-shadow: var(--shadow-soft);
+  transition: transform 0.12s ease;
+}
+.help-chip:hover { transform: translateY(-2px) scale(1.03); }
+.help-chip:active { transform: scale(0.97); }
+.help-chip.ask { background: linear-gradient(120deg, var(--brand), var(--brand2)); }
+.help-chip.go { background: linear-gradient(120deg, var(--sky), var(--good)); }
+
+.help-word {
+  background: #f3f0ff;
+  color: var(--brand);
+  font-weight: 600;
+  font-size: 14px;
+  padding: 8px 14px;
+  border-radius: 999px;
+}
+
+.help-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 38px;
+  height: 38px;
+  border: none;
+  cursor: pointer;
+  border-radius: 50%;
+  background: #f3f0ff;
+  color: var(--brand);
+  font-size: 16px;
+  font-weight: 700;
+  box-shadow: var(--shadow-soft);
+}
+.help-close:hover { background: #ffe4ef; color: var(--brand2); }
+
+
 /* ---------- Tabs ---------- */
 .tabs {
   display: flex;

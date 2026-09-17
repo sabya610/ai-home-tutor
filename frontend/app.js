@@ -338,8 +338,30 @@ function flashVoice(msg) {
   const s = $("voice-status");
   if (s) s.textContent = msg;
 }
+// Open a real popover so the help can't be clobbered by live voice-status text.
 function showVoiceHelp() {
-  flashVoice(VOICE_HELP);
+  const ov = $("help-overlay");
+  if (ov) ov.hidden = false;
+}
+function hideVoiceHelp() {
+  const ov = $("help-overlay");
+  if (ov) ov.hidden = true;
+}
+function initHelpPopover() {
+  const ov = $("help-overlay");
+  if (!ov) return;
+  $("help-close").addEventListener("click", hideVoiceHelp);
+  ov.addEventListener("click", (e) => { if (e.target === ov) hideVoiceHelp(); });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !ov.hidden) hideVoiceHelp();
+  });
+  ov.querySelectorAll(".help-chip").forEach((chip) => {
+    chip.addEventListener("click", () => {
+      hideVoiceHelp();
+      if (chip.dataset.ask) askTutor(chip.dataset.ask);
+      else if (chip.dataset.say) runVoiceCommand(chip.dataset.say);
+    });
+  });
 }
 
 // Commands are matched EXACTLY (after lowercasing + trimming punctuation) so a
@@ -657,6 +679,7 @@ function escapeHtml(s) {
   const health = await api("/api/health").catch(() => ({ ai_mode: "?" }));
   $("ai-badge").textContent = "AI: " + (health.ai_mode || "?");
   initVoiceControl();
+  initHelpPopover();
   await loadTutorModes();
   await loadStudents();
 })();
