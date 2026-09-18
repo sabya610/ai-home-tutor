@@ -223,6 +223,9 @@ class AIClient:
 
         # llama.cpp ignores the key but the SDK requires a non-empty string.
         kwargs: dict[str, Any] = {"api_key": api_key or "not-needed"}
+        # Bound every request so a stalled model fails fast rather than hanging.
+        kwargs["timeout"] = self.settings.tutor_timeout
+        kwargs["max_retries"] = 1
         if base_url:
             kwargs["base_url"] = base_url
         # Corporate proxies often intercept HTTPS with their own CA; trust it via a
@@ -473,12 +476,22 @@ class AIClient:
             messages=_explain_messages(topic, grade_level),
             **self._completion_kwargs(resolved, 0.4),
         )
-        for chunk in stream:
-            if not chunk.choices:
-                continue
-            delta = chunk.choices[0].delta.content
-            if delta:
-                yield delta
+        got_any = False
+        try:
+            for chunk in stream:
+                if not chunk.choices:
+                    continue
+                delta = chunk.choices[0].delta.content
+                if delta:
+                    got_any = True
+                    yield delta
+        except Exception:  # noqa: BLE001 - network/timeout mid-stream
+            pass
+        if not got_any:
+            yield (
+                f"Let's think about {topic} together! Try turning on a Tutor "
+                "above, or ask me again in a moment."
+            )
 
     # -- Diagnostics ----------------------------------------------------
     def provider_info(self) -> dict[str, Any]:

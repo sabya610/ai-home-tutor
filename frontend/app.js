@@ -1,7 +1,44 @@
 "use strict";
 
 const $ = (id) => document.getElementById(id);
-const api = (path, opts) => fetch(path, opts).then((r) => r.json());
+
+// Every request is time-bounded so a stalled backend never freezes a button.
+const REQUEST_TIMEOUT_MS = 35000;
+function fetchT(path, opts = {}, ms = REQUEST_TIMEOUT_MS) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  return fetch(path, { ...opts, signal: ctrl.signal }).finally(() =>
+    clearTimeout(timer)
+  );
+}
+const api = (path, opts) => fetchT(path, opts).then((r) => r.json());
+
+// Show instant feedback on a button while an async action runs.
+function busy(btn, label) {
+  if (!btn) return () => {};
+  const text = btn.textContent;
+  const wasDisabled = btn.disabled;
+  btn.disabled = true;
+  btn.textContent = label;
+  return () => {
+    btn.disabled = wasDisabled;
+    btn.textContent = text;
+  };
+}
+
+// Render a child-safe subset of markdown (**bold**, line breaks) with HTML escaped.
+function renderMarkdown(s) {
+  return escapeHtml(String(s == null ? "" : s))
+    .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")
+    .replace(/\n/g, "<br>");
+}
+
+// Friendly text for the common timeout/abort case.
+function errMsg(err) {
+  return err && err.name === "AbortError"
+    ? "That took too long — please try again."
+    : (err && err.message) || "Something went wrong — please try again.";
+}
 
 let stream = null;
 
@@ -188,16 +225,19 @@ $("dict-check").addEventListener("click", async () => {
   const form = new FormData();
   form.append("expected", expected);
   if (studentId()) form.append("student_id", studentId());
+  const restore = busy($("dict-check"), "⏳ Checking…");
   try {
     if (typed) {
       form.append("recognized_text", typed);
     } else {
       form.append("image", await captureBlob(), "page.jpg");
     }
-    const res = await fetch("/api/dictation/check", { method: "POST", body: form }).then((r) => r.json());
+    const res = await fetchT("/api/dictation/check", { method: "POST", body: form }).then((r) => r.json());
     renderDictation(res);
   } catch (err) {
-    showError($("dict-result"), err.message);
+    showError($("dict-result"), errMsg(err));
+  } finally {
+    restore();
   }
 });
 
@@ -248,16 +288,19 @@ $("hw-check").addEventListener("click", async () => {
   form.append("tutor_mode", currentTutorMode());
   if (studentId()) form.append("student_id", studentId());
   const typed = $("hw-typed").value.trim();
+  const restore = busy($("hw-check"), "⏳ Checking…");
   try {
     if (typed) {
       form.append("recognized_text", typed);
     } else {
       form.append("image", await captureBlob(), "page.jpg");
     }
-    const res = await fetch("/api/homework/check", { method: "POST", body: form }).then((r) => r.json());
+    const res = await fetchT("/api/homework/check", { method: "POST", body: form }).then((r) => r.json());
     renderHomework(res);
   } catch (err) {
-    showError($("hw-result"), err.message);
+    showError($("hw-result"), errMsg(err));
+  } finally {
+    restore();
   }
 });
 
@@ -273,10 +316,10 @@ function renderHomework(r) {
         <div class="muted tiny">Read from page: “${escapeHtml(r.recognized)}”</div>
       </div>
     </div>
-    ${r.mistake ? `<div class="callout bad">❌ ${escapeHtml(r.mistake)}</div>` : ""}
-    ${r.hint ? `<div class="callout hint">💡 ${escapeHtml(r.hint)}</div>` : ""}
-    ${r.explanation ? `<div class="callout ${cls}">${escapeHtml(r.explanation)}</div>` : ""}
-    ${r.next_step ? `<div class="muted">Next: ${escapeHtml(r.next_step)}</div>` : ""}`;
+    ${r.mistake ? `<div class="callout bad">❌ ${renderMarkdown(r.mistake)}</div>` : ""}
+    ${r.hint ? `<div class="callout hint">💡 ${renderMarkdown(r.hint)}</div>` : ""}
+    ${r.explanation ? `<div class="callout ${cls}">${renderMarkdown(r.explanation)}</div>` : ""}
+    ${r.next_step ? `<div class="muted">Next: ${renderMarkdown(r.next_step)}</div>` : ""}`;
 }
 
 // ---- Teach Me ------------------------------------------------------
@@ -527,6 +570,7 @@ async function sendTeachMeTurn() {
     student_id: studentId(),
     turns: tmTurns,
   };
+  const restore = busy($("tm-send"), "⏳ Thinking…");
   try {
     const r = await api("/api/tutor/teachme/turn", {
       method: "POST",
@@ -544,7 +588,9 @@ async function sendTeachMeTurn() {
       renderTeachMeFinal(r);
     }
   } catch (err) {
-    showError($("tm-result"), err.message);
+    showError($("tm-result"), errMsg(err));
+  } finally {
+    restore();
   }
 }
 
@@ -570,7 +616,7 @@ function renderTeachMeFinal(r) {
         <div class="muted tiny">Confirmed after ${r.turn_count} turn(s)</div>
       </div>
     </div>
-    ${r.feedback ? `<div class="callout ${good ? "good" : "hint"}">${escapeHtml(r.feedback)}</div>` : ""}`;
+    ${r.feedback ? `<div class="callout ${good ? "good" : "hint"}">${renderMarkdown(r.feedback)}</div>` : ""}`;
 }
 
 // ---- Ask the tutor -------------------------------------------------
@@ -594,8 +640,9 @@ async function askTutor(topic) {
     </div>
     <div class="callout good" id="ask-text"><span class="caret">▍</span></div>`;
   const textEl = $("ask-text");
+  const restore = busy($("ask-btn"), "🗣️ Thinking…");
   try {
-    const res = await fetch("/api/tutor/explain/stream", {
+    const res = await fetchT("/api/tutor/explain/stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -621,7 +668,7 @@ async function askTutor(topic) {
       textEl.textContent = full;
     }
     full = full.trim();
-    textEl.textContent = full || "…";
+    textEl.innerHTML = renderMarkdown(full) || "…";
     if (mode === "mock") {
       el.insertAdjacentHTML(
         "beforeend",
@@ -630,7 +677,9 @@ async function askTutor(topic) {
     }
     speak(full);
   } catch (err) {
-    showError(el, err.message);
+    showError(el, errMsg(err));
+  } finally {
+    restore();
   }
 }
 
@@ -676,8 +725,10 @@ function escapeHtml(s) {
 
 // ---- Init ----------------------------------------------------------
 (async function init() {
-  const health = await api("/api/health").catch(() => ({ ai_mode: "?" }));
-  $("ai-badge").textContent = "AI: " + (health.ai_mode || "?");
+  // Don't block first paint on the health probe — fill the badge when it returns.
+  api("/api/health")
+    .then((h) => { $("ai-badge").textContent = "AI: " + (h.ai_mode || "?"); })
+    .catch(() => { $("ai-badge").textContent = "AI: ?"; });
   initVoiceControl();
   initHelpPopover();
   await loadTutorModes();

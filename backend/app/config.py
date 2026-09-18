@@ -43,6 +43,8 @@ class Settings(BaseSettings):
     cloud_tutor_model: str = "gpt-5.6-luna"
     # Cap tutor response length (keeps slow local models responsive).
     tutor_max_tokens: int = 512
+    # Fail fast instead of hanging for minutes when a model stalls (seconds).
+    tutor_timeout: float = 30.0
 
     db_path: str = "data/tutor.db"
 
