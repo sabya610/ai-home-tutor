@@ -219,6 +219,28 @@ header button.ghost:hover { background: #f2eeff; }
 }
 .help-close:hover { background: #ffe4ef; color: var(--brand2); }
 
+.help-version { margin: 18px 0 0; color: var(--muted); font-size: 13px; }
+.help-version b { color: var(--brand); }
+
+/* ---------- Footer / version ---------- */
+.app-footer {
+  max-width: 900px;
+  margin: 0 auto 30px;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.version-pill {
+  background: #efeaff;
+  color: var(--brand);
+  font-weight: 700;
+  padding: 3px 12px;
+  border-radius: 999px;
+}
+
 
 /* ---------- Tabs ---------- */
 .tabs {

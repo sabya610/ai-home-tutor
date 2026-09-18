@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     )
 
     app_name: str = "AI Home Tutor"
+    app_version: str = "v15"
 
     # ai_mode: "auto" runs a role for real when it has a usable target (an API
     # key or a custom endpoint), otherwise mock. Force all roles with "openai"

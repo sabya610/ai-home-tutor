@@ -14,6 +14,7 @@ def health() -> dict[str, object]:
     return {
         "status": "ok",
         "app": settings.app_name,
+        "version": settings.app_version,
         "ai_mode": settings.ai_mode,
         "providers": get_ai_client().provider_info(),
         "tapo_configured": bool(settings.tapo_rtsp_url),

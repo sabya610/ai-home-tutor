@@ -779,7 +779,12 @@ function escapeHtml(s) {
 (async function init() {
   // Don't block first paint on the health probe — fill the badge when it returns.
   api("/api/health")
-    .then((h) => { $("ai-badge").textContent = "AI: " + (h.ai_mode || "?"); })
+    .then((h) => {
+      $("ai-badge").textContent = "AI: " + (h.ai_mode || "?");
+      const v = h.version || "?";
+      if ($("app-version")) $("app-version").textContent = v;
+      if ($("help-version")) $("help-version").textContent = v;
+    })
     .catch(() => { $("ai-badge").textContent = "AI: ?"; });
   initVoiceControl();
   initHelpPopover();
