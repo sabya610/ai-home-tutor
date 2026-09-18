@@ -7,11 +7,43 @@ const REQUEST_TIMEOUT_MS = 35000;
 function fetchT(path, opts = {}, ms = REQUEST_TIMEOUT_MS) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), ms);
-  return fetch(path, { ...opts, signal: ctrl.signal }).finally(() =>
+  const { signal: external, ...rest } = opts;
+  if (external) {
+    if (external.aborted) ctrl.abort();
+    else external.addEventListener("abort", () => ctrl.abort(), { once: true });
+  }
+  return fetch(path, { ...rest, signal: ctrl.signal }).finally(() =>
     clearTimeout(timer)
   );
 }
 const api = (path, opts) => fetchT(path, opts).then((r) => r.json());
+
+// Track the in-flight request per feature so a Cancel button can abort it.
+const actions = {};
+function beginAction(key, btn, label, cancelId) {
+  const ctrl = new AbortController();
+  actions[key] = ctrl;
+  const restore = busy(btn, label);
+  const cancelBtn = cancelId ? $(cancelId) : null;
+  if (cancelBtn) cancelBtn.hidden = false;
+  return {
+    ctrl,
+    signal: ctrl.signal,
+    cancelled: () => ctrl.userCancelled === true,
+    end() {
+      restore();
+      if (cancelBtn) cancelBtn.hidden = true;
+      if (actions[key] === ctrl) delete actions[key];
+    },
+  };
+}
+function cancelAction(key) {
+  const ctrl = actions[key];
+  if (ctrl) {
+    ctrl.userCancelled = true;
+    ctrl.abort();
+  }
+}
 
 // Show instant feedback on a button while an async action runs.
 function busy(btn, label) {
@@ -225,19 +257,20 @@ $("dict-check").addEventListener("click", async () => {
   const form = new FormData();
   form.append("expected", expected);
   if (studentId()) form.append("student_id", studentId());
-  const restore = busy($("dict-check"), "⏳ Checking…");
+  const act = beginAction("dict", $("dict-check"), "⏳ Checking…", "dict-cancel");
   try {
     if (typed) {
       form.append("recognized_text", typed);
     } else {
       form.append("image", await captureBlob(), "page.jpg");
     }
-    const res = await fetchT("/api/dictation/check", { method: "POST", body: form }).then((r) => r.json());
+    const res = await fetchT("/api/dictation/check", { method: "POST", body: form, signal: act.signal }).then((r) => r.json());
     renderDictation(res);
   } catch (err) {
-    showError($("dict-result"), errMsg(err));
+    if (act.cancelled()) $("dict-result").hidden = true;
+    else showError($("dict-result"), errMsg(err));
   } finally {
-    restore();
+    act.end();
   }
 });
 
@@ -288,19 +321,20 @@ $("hw-check").addEventListener("click", async () => {
   form.append("tutor_mode", currentTutorMode());
   if (studentId()) form.append("student_id", studentId());
   const typed = $("hw-typed").value.trim();
-  const restore = busy($("hw-check"), "⏳ Checking…");
+  const act = beginAction("hw", $("hw-check"), "⏳ Checking…", "hw-cancel");
   try {
     if (typed) {
       form.append("recognized_text", typed);
     } else {
       form.append("image", await captureBlob(), "page.jpg");
     }
-    const res = await fetchT("/api/homework/check", { method: "POST", body: form }).then((r) => r.json());
+    const res = await fetchT("/api/homework/check", { method: "POST", body: form, signal: act.signal }).then((r) => r.json());
     renderHomework(res);
   } catch (err) {
-    showError($("hw-result"), errMsg(err));
+    if (act.cancelled()) $("hw-result").hidden = true;
+    else showError($("hw-result"), errMsg(err));
   } finally {
-    restore();
+    act.end();
   }
 });
 
@@ -570,12 +604,13 @@ async function sendTeachMeTurn() {
     student_id: studentId(),
     turns: tmTurns,
   };
-  const restore = busy($("tm-send"), "⏳ Thinking…");
+  const act = beginAction("tm", $("tm-send"), "⏳ Thinking…", "tm-cancel");
   try {
     const r = await api("/api/tutor/teachme/turn", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
+      signal: act.signal,
     });
     const tutorMsg = r.followup || r.feedback || "";
     if (tutorMsg) {
@@ -588,9 +623,15 @@ async function sendTeachMeTurn() {
       renderTeachMeFinal(r);
     }
   } catch (err) {
-    showError($("tm-result"), errMsg(err));
+    if (act.cancelled()) {
+      // Drop the just-added child turn so they can retype and resend.
+      tmTurns.pop();
+      renderTranscript();
+    } else {
+      showError($("tm-result"), errMsg(err));
+    }
   } finally {
-    restore();
+    act.end();
   }
 }
 
@@ -640,7 +681,7 @@ async function askTutor(topic) {
     </div>
     <div class="callout good" id="ask-text"><span class="caret">▍</span></div>`;
   const textEl = $("ask-text");
-  const restore = busy($("ask-btn"), "🗣️ Thinking…");
+  const act = beginAction("ask", $("ask-btn"), "🗣️ Thinking…", "ask-cancel");
   try {
     const res = await fetchT("/api/tutor/explain/stream", {
       method: "POST",
@@ -650,6 +691,7 @@ async function askTutor(topic) {
         grade_level: studentGrade(),
         tutor_mode: currentTutorMode(),
       }),
+      signal: act.signal,
     });
     if (!res.ok || !res.body) throw new Error("HTTP " + res.status);
     const mode = res.headers.get("X-Tutor-Mode") || "";
@@ -677,15 +719,25 @@ async function askTutor(topic) {
     }
     speak(full);
   } catch (err) {
-    showError(el, errMsg(err));
+    if (act.cancelled()) el.hidden = true;
+    else showError(el, errMsg(err));
   } finally {
-    restore();
+    act.end();
   }
 }
 
 $("ask-btn").addEventListener("click", () => askTutor($("ask-question").value));
 $("ask-question").addEventListener("keydown", (e) => {
   if (e.key === "Enter") askTutor($("ask-question").value);
+});
+
+// Cancel buttons abort the in-flight request for each feature.
+$("dict-cancel").addEventListener("click", () => cancelAction("dict"));
+$("hw-cancel").addEventListener("click", () => cancelAction("hw"));
+$("tm-cancel").addEventListener("click", () => cancelAction("tm"));
+$("ask-cancel").addEventListener("click", () => {
+  cancelAction("ask");
+  if ("speechSynthesis" in window) speechSynthesis.cancel();
 });
 
 // ---- Progress ------------------------------------------------------

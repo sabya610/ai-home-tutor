@@ -350,6 +350,15 @@ button.ghost {
 }
 button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
 
+button.btn-cancel {
+  background: #fff;
+  color: var(--bad);
+  border: 3px solid #ffd4dc;
+  box-shadow: 0 4px 0 rgba(255, 93, 115, 0.18);
+}
+button.btn-cancel:hover { background: #fff0f3; }
+button.btn-cancel[hidden] { display: none; }
+
 /* ---------- Sentence ---------- */
 .sentence {
   font-family: "Baloo 2", "Fredoka", sans-serif;
